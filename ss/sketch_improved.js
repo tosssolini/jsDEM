@@ -1,55 +1,8 @@
-class Grain {
-    constructor(mass, radius, xpos, ypos) {
-        this.mass = mass;
-        this.inertia = 0.5 * mass * radius * radius;
-        this.radius = radius;
-
-        this.x = xpos;
-        this.y = ypos;
-        this.rot = 0.0;
-        this.vx = 0.0;
-        this.vy = 0.0;
-        this.vrot = 0.0;
-        this.ax = 0.0;
-        this.ay = 0.0;
-        this.arot = 0.0;
-
-        // resultant force and torque
-        this.fx = 0.0;
-        this.fy = 0.0;
-        this.frot = 0.0;
-    }
-
-    draw() {
-        // grat level of velocity
-        let vel = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        let M = max(vRand, 0.8 * abs(topv));
-        let colorVel = map(vel, 0.0, M, 255, 0);
-        fill(colorVel);
-
-        push();
-        translate(this.x * scale, height - (this.y * scale));
-        rotate(-this.rot);
-        stroke(0);
-        let r = this.radius * scale;
-        circle(0, 0, 2 * r);
-        line(0, 0, r, 0);
-        pop();
-    }
-}
-
-class Neighbor {
-    constructor(i, j) {
-        this.i = i;
-        this.j = j;
-        this.touch = false;
-        this.fn = 0.0;
-        this.ft = 0.0;
-    }
-}
+// Simple 2D DEM code in JavaScript
+// Improved version with better structure and comments
 
 // system variables
-let grain = [];
+let grains = [];
 let ngw = 5; // number of grains in width
 let ngh = 5; // number of grains in height
 let rmin = 0.5E-3; // minimum radius
@@ -122,23 +75,23 @@ let istep = 0; // step counter
 
 function putOnGrid() {
     Vsolid = 0.0;
+    vRand = rmin / (200 * dt); // 5 * axialVelocity
     for (let iy = 0; iy < ngh; iy++) {
         for (let ix = 0; ix < ngw; ix++) {
+            // position
             let x = rmax + ix * 2 * rmax;
             let y = rmax + iy * 2 * rmax;
+            let pos = createVector(x, y);
+            // radius
             let radius = random(rmin, rmax);
-            Vsolid += Math.PI * radius * radius;
+            // mass
             let mass = Math.PI * radius * radius * density;
-            let i = ix + iy * ngw;
-            grain.push(new Grain(mass, radius, x, y));
+            // velocity
+            let vel = createVector(random(-vRand, vRand), random(-vRand, vRand));
+            grains.push(new Grain(mass, radius, pos, vel));
+            // sum solid volume
+            Vsolid += Math.PI * radius * radius;
         }
-    }
-
-    // random velocity in any direction, and compute initial kinetic energy
-    vRand = rmin / (200 * dt); // 5 * axialVelocity
-    for (let i = 0; i < grain.length; i++) {
-        grain[i].vx = random(-vRand, vRand);
-        grain[i].vy = random(-vRand, vRand);
     }
 
     xmax = ngw * 2 * rmax;
@@ -154,33 +107,33 @@ function computeForces(k) {
     let i = neighbor[k].i;
     let j = neighbor[k].j;
 
-    // branch from j to i
-    let bx = grain[i].x - grain[j].x;
-    let by = grain[i].y - grain[j].y;
-    let b = Math.sqrt(bx * bx + by * by);
+    // branch vector from j to i
+    let branch = p5.Vector.sub(grains[i].pos, grains[j].pos);
+    let b = branch.mag();
 
     // distance between the grains
-    let dn = b - (grain[i].radius + grain[j].radius);
+    let dn = b - (grains[i].radius + grains[j].radius);
 
     if (dn < 0.0) {
         neighbor[k].touch = true;
-        let nx = bx / b;
-        let ny = by / b;
-        let tx = -ny;
-        let ty = nx;
 
-        let vrelx = grain[i].vx - grain[j].vx + grain[i].radius * grain[i].vrot * ny + grain[j].radius * grain[j].vrot * ny;
-        let vrely = grain[i].vy - grain[j].vy - grain[i].radius * grain[i].vrot * nx - grain[j].radius * grain[j].vrot * nx;
-        let vn = vrelx * nx + vrely * ny;
-        let vt = vrelx * tx + vrely * ty;
+        // normal and tangent unit vectors
+        let normal = p5.Vector.div(branch, b);  // normalize branch vector
+        let tangent = createVector(-normal.y, normal.x);  // perpendicular to normal
 
-        let meff = (grain[i].mass * grain[j].mass) / (grain[i].mass + grain[j].mass);
+        // relative velocity calculation
+        let vrel = p5.Vector.sub(grains[i].vel, grains[j].vel);
+
+        let vn = p5.Vector.dot(vrel, normal);  // normal component of relative velocity
+        let vt = p5.Vector.dot(vrel, tangent); // tangential component of relative velocity
+
+        let meff = (grains[i].mass * grains[j].mass) / (grains[i].mass + grains[j].mass);
         let visco = viscoRate * 2.0 * Math.sqrt(kn * meff);
         let fn = -kn * dn - visco * vn + fcohesion;
         neighbor[k].fn = fn;
 
-        // let ft = -visco * vt;
-        let ft = neighbor[k].ft - kt * vt * dt;
+        // Tangential force with both elastic and viscous components
+        let ft = neighbor[k].ft - kt * vt * dt - visco * vt;
         let threshold = mu * abs(fn);
         if (ft > threshold) {
             ft = threshold;
@@ -189,19 +142,14 @@ function computeForces(k) {
         }
         neighbor[k].ft = ft;
 
-        // (fx,fy) = projection of n and t forces into the global frame
-        let fx = fn * nx + ft * tx;
-        let fy = fn * ny + ft * ty;
+        // force vector = projection of normal and tangential forces
+        let forceVec = p5.Vector.mult(normal, fn);
+        forceVec.add(p5.Vector.mult(tangent, ft));
 
-        grain[i].fx += fx;
-        grain[i].fy += fy;
-        grain[i].frot -= -ft * (grain[i].radius + 0.5 * dn);
-        grain[i].p += fn;
-
-        grain[j].fx -= fx;
-        grain[j].fy -= fy;
-        grain[j].frot -= ft * (grain[j].radius + 0.5 * dn);
-        grain[j].p += fn;
+        grains[i].force.add(forceVec);
+        grains[j].force.sub(forceVec);
+        grains[i].p += fn;
+        grains[j].p += fn;
     } else {
         neighbor[k].touch = false;
         neighbor[k].fn = 0.0;
@@ -210,47 +158,47 @@ function computeForces(k) {
 }
 
 function computeForceWallLeft(i) {
-    let dn = grain[i].x - grain[i].radius;
+    let dn = grains[i].pos.x - grains[i].radius;
     if (dn < 0.0) {
-        let vn = grain[i].vx;
-        let visco = viscoRate * 2.0 * Math.sqrt(kn * grain[i].mass);
+        let vn = grains[i].vel.x;
+        let visco = viscoRate * 2.0 * Math.sqrt(kn * grains[i].mass);
         let fn = -kn * dn - visco * vn;
-        grain[i].fx += fn;
-        grain[i].p += fn;
+        grains[i].force.x += fn;
+        grains[i].p += fn;
     }
 }
 
 function computeForceWallRight(i) {
-    let dn = (xmax - grain[i].x) - grain[i].radius;
+    let dn = (xmax - grains[i].pos.x) - grains[i].radius;
     if (dn < 0.0) {
-        let vn = -grain[i].vx - rightv;
-        let visco = viscoRate * 2.0 * Math.sqrt(kn * grain[i].mass);
+        let vn = -grains[i].vel.x - rightv;
+        let visco = viscoRate * 2.0 * Math.sqrt(kn * grains[i].mass);
         let fn = -kn * dn - visco * vn;
-        grain[i].fx -= fn;
-        grain[i].p += fn;
+        grains[i].force.x -= fn;
+        grains[i].p += fn;
         rightf += fn;
     }
 }
 
 function computeForceWallBottom(i) {
-    let dn = grain[i].y - grain[i].radius;
+    let dn = grains[i].pos.y - grains[i].radius;
     if (dn < 0.0) {
-        let vn = grain[i].vy;
-        let visco = viscoRate * 2.0 * Math.sqrt(kn * grain[i].mass);
+        let vn = grains[i].vel.y;
+        let visco = viscoRate * 2.0 * Math.sqrt(kn * grains[i].mass);
         let fn = -kn * dn - visco * vn;
-        grain[i].fy += fn;
-        grain[i].p += fn;
+        grains[i].force.y += fn;
+        grains[i].p += fn;
     }
 }
 
 function computeForceWallTop(i) {
-    let dn = (ymax - grain[i].y) - grain[i].radius;
+    let dn = (ymax - grains[i].pos.y) - grains[i].radius;
     if (dn < 0.0) {
-        let vn = -grain[i].vy - topv;
-        let visco = viscoRate * 2.0 * Math.sqrt(kn * grain[i].mass);
+        let vn = -grains[i].vel.y - topv;
+        let visco = viscoRate * 2.0 * Math.sqrt(kn * grains[i].mass);
         let fn = -kn * dn - visco * vn;
-        grain[i].fy -= fn;
-        grain[i].p += fn;
+        grains[i].force.y -= fn;
+        grains[i].p += fn;
         topf += fn;
     }
 }
@@ -266,16 +214,15 @@ function updateNeighborList() {
     neighbor.length = 0;
 
     // rebuild the nieghbor list 
-    for (let i = 0; i < grain.length; i++) {
-        for (let j = i + 1; j < grain.length; j++) {
+    for (let i = 0; i < grains.length; i++) {
+        for (let j = i + 1; j < grains.length; j++) {
 
-            // branch from j to i
-            let bx = grain[i].x - grain[j].x;
-            let by = grain[i].y - grain[j].y;
-            let b = sqrt(bx * bx + by * by);
+            // branch vector from j to i
+            let branch = p5.Vector.sub(grains[i].pos, grains[j].pos);
+            let b = branch.mag();
 
             // distance between the grains
-            let dn = b - (grain[i].radius + grain[j].radius);
+            let dn = b - (grains[i].radius + grains[j].radius);
             if (dn <= dmax) {
                 neighbor.push(new Neighbor(i, j));
             }
@@ -331,7 +278,36 @@ function graph(xcanvas, ycanvas, w, h, data, title) {
     text(title + ' min: ' + round(ymin, 3) + ' max: ' + round(ymax, 3), xcanvas + 3, ycanvas - h + 10);
 }
 
+function grainsTimeStep() {
+    // integration for particles (Euler scheme)
+    for (let i = 0; i < grains.length; i++) {
+        //update position
+        grains[i].pos.add(p5.Vector.mult(grains[i].vel, dt));
 
+        //update velocity
+        grains[i].vel.add(p5.Vector.mult(grains[i].acc, dt));
+
+        //artificial and brutal dissipation of energy
+        grains[i].vel.mult(0.9999);
+
+        // reset resultant forces
+        grains[i].force.set(0.0, 0.0);
+        grains[i].p = 0.0;
+    }
+}
+
+function wallsTimeStep() {
+    // integration for walls (Euler scheme)
+    // top wall
+    topa = topf / wallMass;
+    topv += topa * dt;
+    ymax += topv * dt;
+
+    // right wall
+    righta = rightf / wallMass;
+    rightv += righta * dt;
+    xmax += rightv * dt;
+}
 
 // P5.js setup and draw functions
 function setup() {
@@ -344,36 +320,15 @@ function setup() {
 function draw() {
     background(240);
 
-    // integration for particles (Euler scheme)
-    for (let i = 0; i < grain.length; i++) {
-        //update position
-        grain[i].x += grain[i].vx * dt
-        grain[i].y += grain[i].vy * dt
-        grain[i].rot += grain[i].vrot * dt
-
-        //update velocity
-        grain[i].vx += grain[i].ax * dt
-        grain[i].vy += grain[i].ay * dt
-        grain[i].vrot += grain[i].arot * dt
-
-        //artificial and brutal dissipation of energy
-        grain[i].vx *= 0.9999;
-        grain[i].vy *= 0.9999;
-        grain[i].vrot *= 0.9999;
-
-        // reset resultant forces
-        grain[i].fx = 0.0;
-        grain[i].fy = 0.0;
-        grain[i].frot = 0.0;
-        grain[i].p = 0.0;
-    }
+    // Update kinematics and reset resultant forces
+    grainsTimeStep();
 
     // Reset wall forces FIRST
     topf = 0.0;
     rightf = 0.0;
 
     // Compute wall forces
-    for (let i = 0; i < grain.length; i++) {
+    for (let i = 0; i < grains.length; i++) {
         computeForceWallLeft(i);
         computeForceWallRight(i);
         computeForceWallTop(i);
@@ -428,10 +383,8 @@ function draw() {
     if (ymax > ngh * 2 * rmax) ymax = ngh * 2 * rmax;
 
     // Update accelerations on grains
-    for (let i = 0; i < grain.length; i++) {
-        grain[i].ax = grain[i].fx / grain[i].mass;
-        grain[i].ay = grain[i].fy / grain[i].mass;
-        grain[i].arot = grain[i].frot / grain[i].inertia;
+    for (let i = 0; i < grains.length; i++) {
+        grains[i].acc = p5.Vector.div(grains[i].force, grains[i].mass);
     }
 
     istep++; // increment step counter
@@ -448,8 +401,8 @@ function draw() {
     line(xmax * scale, height - (ymax * scale), xmax * scale, height);
 
     // Draw particles
-    for (let i = 0; i < grain.length; i++) {
-        grain[i].draw();
+    for (let i = 0; i < grains.length; i++) {
+        grains[i].draw();
     }
 
     // neighbours
@@ -459,10 +412,10 @@ function draw() {
         if (neighbor[k].touch) {
             let w = map(neighbor[k].fn, 0, fnmax, 0, rmin * scale);
             strokeWeight(w);
-            let xi = grain[neighbor[k].i].x * scale;
-            let yi = height - (grain[neighbor[k].i].y * scale);
-            let xj = grain[neighbor[k].j].x * scale;
-            let yj = height - (grain[neighbor[k].j].y * scale);
+            let xi = grains[neighbor[k].i].pos.x * scale;
+            let yi = height - (grains[neighbor[k].i].pos.y * scale);
+            let xj = grains[neighbor[k].j].pos.x * scale;
+            let yj = height - (grains[neighbor[k].j].pos.y * scale);
             line(xi, yi, xj, yj);
             counts++;
         }
@@ -477,8 +430,8 @@ function draw() {
     rwallf.push(rightf);
     twallf.push(topf);
     // draw graphs
-    graph(550, 250, 500, 200, twallpos, 'Top position');
-    graph(550, 500, 590, 200, rwallpos, 'Right position');
+    graph(550, 250, 500, 200, coordNumber, 'Coordination Number');
+    graph(550, 500, 590, 200, solidFrac, 'Solid Fraction');
 
     // display step count
     fill(0);
