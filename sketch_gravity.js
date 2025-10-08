@@ -8,8 +8,8 @@ let world;
 let scale;
 
 // system variables
-let ngw = 15; // number of grains in width
-let ngh = 15; // number of grains in height
+let ngw = 25; // number of grains in width
+let ngh = 25; // number of grains in height
 let rmin = 0.5E-3; // minimum radius
 let rmax = 1.0E-3; // maximum radius
 let vRand;
@@ -41,7 +41,7 @@ let dt = Math.PI * Math.sqrt(meanMass / kn) / 20 // time step
 
 // contact search variables
 let dmax = 0.95 * rmin; // maximum distance for neighbor search
-let nStepsUpsdate = 1; // number of steps for neighbor search update
+let nStepsUpsdate = 5; // number of steps for neighbor search update
 
 // other parameter declarations
 let fnmax = 0.0; // maximum force (display purpose)
@@ -55,7 +55,7 @@ let Vsolid;
 function createGrains() {
     // Create grains with random positions and velocities on a grid without overlap
     let grains = [];
-    vRand = rmin / (200 * dt); // 5 * axialVelocity
+    vRand = rmin / (50 * dt); // 5 * axialVelocity
 
     for (let iy = 0; iy < ngh; iy++) {
         for (let ix = 0; ix < ngw; ix++) {
@@ -112,7 +112,7 @@ function graph(xcanvas, ycanvas, w, h, data, title) {
 
 // P5.js setup and draw functions
 function setup() {
-    createCanvas(1000, 500);
+    createCanvas(1400, 800);
     background(240);
 
     // Calculate world dimensions
@@ -182,14 +182,11 @@ function draw() {
     solidFrac.push(Vsolid / world.getVolume());
     coordNumber.push(2 * counts / ng);
     kineticEnergy.push(world.getKineticEnergy());
-    // draw graphs
-    graph(550, 250, 500, 200, coordNumber, 'Coordination Number');
-    graph(550, 500, 590, 200, kineticEnergy, 'Kinetic Energy');
+    // draw graphs  
+    graph(750, 420, 600, 310, coordNumber, 'Coordination Number');
+    graph(750, 760, 600, 310, kineticEnergy, 'Kinetic Energy');
 
     // display step count
     fill(0);
     text('Step: ' + istep, 900, 20);
-
-
-
 }
