@@ -4,12 +4,12 @@
 // World object - contains all simulation data
 let world;
 
-// Scale for drawing
-let scale = 20000;
+// Scale for drawing (calculated automatically)
+let scale;
 
 // system variables
-let ngw = 10; // number of grains in width
-let ngh = 10; // number of grains in height
+let ngw = 15; // number of grains in width
+let ngh = 15; // number of grains in height
 let rmin = 0.5E-3; // minimum radius
 let rmax = 1.0E-3; // maximum radius
 let vRand;
@@ -20,10 +20,10 @@ let meanDiameter = rmin + rmax; // mean diameter
 let pressure = 1.0;  // target confining pressure
 
 // non-dimensional parameters
-let kappa = 100000
-let viscoRate = 0.98;
+let kappa = 10000
+let viscoRate = 0.2; // typical for granular materials (0.1-0.3)
 let InertialNumber = 1.0E-2;
-let damping = 0.01; // damping coefficient
+let damping = 0.01; // global damping coefficient
 
 // Grain parameters
 let kn = kappa * pressure // contact stiffness
@@ -49,6 +49,7 @@ let nc = 0; // number of contacts
 let istep = 0; // step counter
 let coordNumber = [];
 let solidFrac = [];
+let kineticEnergy = []; // new array to store kinetic energy
 let Vsolid;
 
 function createGrains() {
@@ -85,7 +86,7 @@ function createWalls(xmin, xmax, ymin, ymax) {
 }
 
 function graph(xcanvas, ycanvas, w, h, data, title) {
-    stroke(255, 0, 0); // red
+    stroke(255); // white axes
     line(xcanvas, ycanvas, xcanvas, ycanvas - h);
     line(xcanvas, ycanvas, xcanvas + w, ycanvas);
 
@@ -98,18 +99,37 @@ function graph(xcanvas, ycanvas, w, h, data, title) {
     }
     let Dx = w / (data.length - 1);
     let sc = h / (ymax - ymin);
-    stroke(0, 0, 255);
+    stroke(0, 255, 0); // light green data line
     for (let i = 0; i < data.length - 1; i++) {
         line(xcanvas + Dx * (i - 1), ycanvas - sc * (data[i - 1] - ymin), xcanvas + Dx * i, ycanvas - sc * (data[i] - ymin));
     }
-    fill(0);
-    text(title + ' min: ' + round(ymin, 3) + ' max: ' + round(ymax, 3), xcanvas + 3, ycanvas - h + 10);
+    noStroke(); // remove stroke for text
+    fill(255); // white text
+    textSize(14); // increase text size
+    let currentValue = data[data.length - 1]; // get the most recent value
+    text(title + ' min: ' + round(ymin, 3) + ' max: ' + round(ymax, 3) + ' current: ' + round(currentValue, 3), xcanvas + 3, ycanvas - h + 10);
 }
 
 // P5.js setup and draw functions
 function setup() {
     createCanvas(1000, 500);
     background(240);
+
+    // Calculate world dimensions
+    let worldWidth = ngw * 2 * rmax;   // Physical world width in meters
+    let worldHeight = ngh * 2 * rmax;  // Physical world height in meters
+
+    // Calculate scale to fit within display bounds
+    let maxDisplayWidth = 0.5 * width;   // 500 pixels
+    let maxDisplayHeight = 0.9 * height; // 450 pixels
+
+    let scaleX = maxDisplayWidth / worldWidth;   // pixels per meter (width constraint)
+    let scaleY = maxDisplayHeight / worldHeight;  // pixels per meter (height constraint)
+    scale = min(scaleX, scaleY);  // Use smaller scale to fit both dimensions
+
+    console.log(`World size: ${worldWidth.toExponential(2)}m x ${worldHeight.toExponential(2)}m`);
+    console.log(`Display area: ${maxDisplayWidth}px x ${maxDisplayHeight}px`);
+    console.log(`Auto-calculated scale: ${scale.toExponential(2)} pixels/meter`);
 
     // Create grains
     let grains = createGrains();
@@ -129,7 +149,7 @@ function setup() {
 }
 
 function draw() {
-    background(240);
+    background(0);
 
     // Reset forces first
     world.resetForces();
@@ -161,9 +181,10 @@ function draw() {
     // compute and store data for plots using World data
     solidFrac.push(Vsolid / world.getVolume());
     coordNumber.push(2 * counts / ng);
+    kineticEnergy.push(world.getKineticEnergy());
     // draw graphs
     graph(550, 250, 500, 200, coordNumber, 'Coordination Number');
-    graph(550, 500, 590, 200, solidFrac, 'Solid Fraction');
+    graph(550, 500, 590, 200, kineticEnergy, 'Kinetic Energy');
 
     // display step count
     fill(0);

@@ -73,10 +73,4 @@ class Wall {
         this.force = 0;
     }
 
-    draw(scale) {
-        // Draw wall as a line segment
-        stroke(255, 0, 0);
-        line(0, height - (this.position.y * scale), this.position.x * scale, height - (this.position.y * scale));
-        line(this.position.x * scale, height - (this.position.y * scale), this.position.x * scale, height);
-    }
 }

@@ -13,6 +13,7 @@ class World {
         this.viscoRate = viscoRate;
         this.damping = damping;
         this.neighbors = [];  // Move from global variable
+
     }
 
     applyAcceleration(acceleration) {
@@ -212,6 +213,15 @@ class World {
         return volume;
     }
 
+    getKineticEnergy() {
+        // Calculate total kinetic energy of grains
+        let KE = 0;
+        for (let grain of this.grains) {
+            KE += 0.5 * grain.mass * grain.vel.magSq();
+        }
+        return KE;
+    }
+
     // Draw functions for visualization
 
     drawContacts(scale, fnmax, rmin) {
@@ -248,10 +258,17 @@ class World {
     }
 
     drawWalls(scale) {
-        // Draw all walls
-        this.walls.forEach(wall => {
-            if (wall.draw) wall.draw(scale);  // If Wall has draw method
-        });
-    }
+        // Draw the box created by the walls (walls are given by their normal and a position on the line)
+        stroke(255);
+        strokeWeight(2);
+        // Get the corners of the box
+        let x1 = this.leftWall.position.x;
+        let x2 = this.rightWall.position.x;
+        let y1 = this.bottomWall.position.y;
+        let y2 = this.topWall.position.y;
 
+        // Draw the box
+        noFill();
+        rect(x1 * scale, height - (y2 * scale), (x2 - x1) * scale, (y2 - y1) * scale);
+    }
 }

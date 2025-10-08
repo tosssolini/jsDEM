@@ -30,13 +30,13 @@ class Grain {
     }
 
     draw(scale, maxVelocity) {
-
         let vel = this.vel.mag(); // get magnitude of velocity vector
-        let colorVel = map(vel, 0.0, maxVelocity, 255, 0);
-        fill(colorVel);
+        let greenIntensity = map(vel, 0.0, maxVelocity, 0, 255); // green intensity based on velocity
+        fill(0, greenIntensity, 0); // light green color with varying intensity
         push();
         translate(this.pos.x * scale, height - (this.pos.y * scale));
-        stroke(0);
+        stroke(255); // white outline
+        strokeWeight(1);
         let r = this.radius * scale;
         circle(0, 0, 2 * r);
         pop();
