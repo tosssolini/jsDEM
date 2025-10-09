@@ -10,8 +10,8 @@ let colorBy = 'pressure'; // 'velocity' or 'pressure'
 let maxParam = 5; // max value for color scale
 
 // system variables
-let ngw = 20; // number of grains in width
-let ngh = 20; // number of grains in height
+let ngw = 50; // number of grains in width
+let ngh = 50; // number of grains in height
 let rmin = 0.5E-3; // minimum radius
 let rmax = 1.0E-3; // maximum radius
 let vRand;
@@ -165,7 +165,6 @@ function draw() {
 
     // Integrate motion (both grains and walls)
     world.grainsTimestep();
-    world.wallsTimestep(dt);
 
     // Update neighbor list periodically
     if (istep % nStepsUpsdate == 0) {

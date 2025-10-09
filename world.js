@@ -31,15 +31,10 @@ class World {
         }
     }
 
-    // Update movable walls (replaces wallsTimeStep function)
-    wallsTimestep() {
-        this.walls.forEach(wall => {
-            if (wall.mass < Infinity) {  // Only update movable walls
-                wall.updatePosition(this.dt);
-            }
-        });
+    // Update wall
+    wallTimestep(wallId, force) {
+        this.walls[wallId].updatePosition(force)
     }
-
 
     resetForces() {
         // Reset forces and pressures on grains and walls
@@ -188,23 +183,16 @@ class World {
         }
     }
 
-    // Get wall forces for analysis/control (replaces rightf, topf variables)
-    getRightWallForce() {
-        return this.rightWall.force;
-    }
 
-    getTopWallForce() {
-        return this.topWall.force;
-    }
 
-    getVolume() {
+    calculateVolume() {
         // Calculate current volume of the system
         let width = this.rightWall.position.x - this.leftWall.position.x;
         let height = this.topWall.position.y - this.bottomWall.position.y;
         return width * height;
     }
 
-    getGrainVolume() {
+    calculateGrainVolume() {
         // Calculate total volume of grains
         let volume = 0;
         for (let grain of this.grains) {
@@ -213,7 +201,32 @@ class World {
         return volume;
     }
 
-    getKineticEnergy() {
+    calculateVoidRatio() {
+        // Calculate void ratio = Vvoid / Vsolid
+        let Vsolid = this.calculateGrainVolume();
+        let Vvoid = this.calculateVolume() - Vsolid;
+        return Vvoid / Vsolid;
+    }
+
+    calculateSolidFraction() {
+        // Calculate solid fraction = Vsolid / Vtotal
+        let Vsolid = this.calculateGrainVolume();
+        let Vtotal = this.calculateVolume();
+        return Vsolid / Vtotal;
+    }
+
+    calculateCoordinationNumber() {
+        // Calculate average coordination number (contacts per grain)
+        let contactCount = 0;
+        for (let neighbor of this.neighbors) {
+            if (neighbor.touch) {
+                contactCount++;
+            }
+        }
+        return 2 * contactCount / this.grains.length;
+    }
+
+    calculateKineticEnergy() {
         // Calculate total kinetic energy of grains
         let KE = 0;
         for (let grain of this.grains) {
@@ -222,7 +235,115 @@ class World {
         return KE;
     }
 
-    // Draw functions for visualization
+    getTotalGrainPressure() {
+        // Calculate total pressure from all grains
+        let totalP = 0;
+        for (let grain of this.grains) {
+            totalP += grain.p;
+        }
+        return totalP;
+    }
+
+    calculateVoigtStress() {
+        // Calculate macroscopic stress tensor from grain contacts using Love-Weber formula
+        let sigma = [[0, 0], [0, 0]]; // Initialize 2x2 stress tensor
+        let volume = this.calculateVolume();
+
+        for (let neighbor of this.neighbors) {
+            if (neighbor.touch) {
+                let grainI = this.grains[neighbor.i];
+                let grainJ = this.grains[neighbor.j];
+                let branch = p5.Vector.sub(grainI.pos, grainJ.pos);
+
+                // Contact force vector (normal + tangential components)
+                let b = branch.mag();
+                let normal = p5.Vector.div(branch, b);
+                let tangent = createVector(-normal.y, normal.x);
+                let forceVec = p5.Vector.add(
+                    p5.Vector.mult(normal, neighbor.fn),
+                    p5.Vector.mult(tangent, neighbor.ft)
+                );
+
+                // Dyadic product contribution: σ += (1/V) * force ⊗ branch
+                sigma[0][0] += forceVec.x * branch.x;
+                sigma[0][1] += forceVec.x * branch.y;
+                sigma[1][0] += forceVec.y * branch.x;
+                sigma[1][1] += forceVec.y * branch.y;
+            }
+        }
+
+        // Normalize by volume
+        for (let i = 0; i < 2; i++) {
+            for (let j = 0; j < 2; j++) {
+                sigma[i][j] /= volume;
+            }
+        }
+
+        // Return in Voigt notation: [σxx, σyy, σxy]
+        return [sigma[0][0], sigma[1][1], sigma[0][1]];
+    }
+
+    calculateStrainFromReference(referenceHeight, referenceWidth) {
+        // Hybrid approach: simple height/width for axial/lateral, exact volume for volumetric
+        // Note: Signs flipped to make compression positive
+        let currentHeight = this.getCellHeight();
+        let currentWidth = this.getCellWidth();
+
+        let strainX = (referenceWidth - currentWidth) / referenceWidth;
+        let strainY = (referenceHeight - currentHeight) / referenceHeight;
+
+        // Exact volumetric strain calculation (compression positive)
+        let referenceVolume = referenceHeight * referenceWidth;
+        let currentVolume = currentHeight * currentWidth;
+        let volumetricStrain = (referenceVolume - currentVolume) / referenceVolume;
+
+        return { strainX: strainX, strainY: strainY, volumetricStrain: volumetricStrain };
+    }
+
+    // Get methods
+
+    getRightWallForce() {
+        return this.rightWall.force;
+    }
+
+    getLeftWallForce() {
+        return this.leftWall.force;
+    }
+
+    getTopWallForce() {
+        return this.topWall.force;
+    }
+
+    getBottomWallForce() {
+        return this.bottomWall.force;
+    }
+
+    getRightWallPosition() {
+        return this.rightWall.position.x;
+    }
+    getLeftWallPosition() {
+        return this.leftWall.position.x;
+    }
+    getTopWallPosition() {
+        return this.topWall.position.y;
+    }
+    getBottomWallPosition() {
+        return this.bottomWall.position.y;
+    }
+
+    getCellHeight() {
+        return this.topWall.position.y - this.bottomWall.position.y;
+    }
+
+    getCellWidth() {
+        return this.rightWall.position.x - this.leftWall.position.x;
+    }
+
+    getCellVolume() {
+        return this.getCellHeight() * this.getCellWidth();
+    }
+
+    // Draw methods
 
     drawContacts(scale, fnmax, rmin) {
         // Draw contact forces between grains using individual neighbor draw methods
@@ -259,4 +380,6 @@ class World {
         noFill();
         rect(x1 * scale, height - (y2 * scale), (x2 - x1) * scale, (y2 - y1) * scale);
     }
+
+
 }

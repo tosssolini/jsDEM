@@ -7,6 +7,7 @@ class Wall {
         this.velocity = createVector(0, 0); // Wall velocity
         this.acc = createVector(0, 0); // Wall acceleration
         this.force = 0;              // Total force on wall (scalar, along normal)
+        this.ncontacts = 0;         // Number of contacts with grains
     }
 
     // Distance from grain center to wall (negative = penetration)
@@ -57,20 +58,43 @@ class Wall {
             // Reaction force on wall (Newton's 3rd law)
             this.force += fn;
 
+            this.ncontacts += 1; // Increment contact count
+
             return fn;
         }
         return 0;
     }
 
-    updatePosition(dt) {
-        // Euler integration 
-        this.position.add(p5.Vector.mult(this.velocity, dt)); //update position
-        this.velocity.add(p5.Vector.mult(this.acc, dt)); //update velocity        
-        this.velocity.mult(0.9999); //artificial and brutal dissipation of energy
+    // Newton-Raphson timestep in the normal direction
+    updatePosition(externalForce) {
+        const alpha = 0.7;  // Relaxation factor
+
+        // Total net force (contact forces + external force)
+        let netForce = this.force - externalForce;
+
+        // Calculate displacement using Newton-Raphson approach
+        let displacement;
+        if (this.ncontacts < 1) {
+            // No contacts: use single contact normalization
+            displacement = alpha * netForce / this.kn / 1.0;
+        } else {
+            // Has contacts: normalize by number of contacts
+            displacement = alpha * netForce / this.kn / this.ncontacts;
+        }
+
+        // Move wall along normal direction
+        this.moveWall(-displacement);
+    }
+
+    moveWall(deltaPos) {
+        // Move wall deltaPos along its normal direction
+        let displacement = p5.Vector.mult(this.normal, deltaPos);
+        this.position.add(displacement);
     }
 
     resetForce() {
         this.force = 0;
+        this.ncontacts = 0; // Reset contact count
     }
 
 }
