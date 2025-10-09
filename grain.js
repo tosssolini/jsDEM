@@ -29,9 +29,15 @@ class Grain {
         return Math.PI * Math.pow(this.radius, 2);
     }
 
-    draw(scale, maxVelocity) {
-        let vel = this.vel.mag(); // get magnitude of velocity vector
-        let greenIntensity = map(vel, 0.0, maxVelocity, 0, 255); // green intensity based on velocity
+    draw(scale, colorBy, maxParam) {
+        let param;
+        if (colorBy === 'velocity') {
+            param = this.vel.mag(); // get magnitude of velocity vector
+        } else if (colorBy === 'pressure') {
+            param = this.p;
+        }
+
+        let greenIntensity = map(param, 0.0, maxParam, 0, 255); // green intensity based on parameter
         fill(0, greenIntensity, 0); // light green color with varying intensity
         push();
         translate(this.pos.x * scale, height - (this.pos.y * scale));

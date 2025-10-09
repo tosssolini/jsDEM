@@ -6,10 +6,12 @@ let world;
 
 // Scale for drawing (calculated automatically)
 let scale;
+let colorBy = 'pressure'; // 'velocity' or 'pressure'
+let maxParam = 5; // max value for color scale
 
 // system variables
-let ngw = 25; // number of grains in width
-let ngh = 25; // number of grains in height
+let ngw = 20; // number of grains in width
+let ngh = 20; // number of grains in height
 let rmin = 0.5E-3; // minimum radius
 let rmax = 1.0E-3; // maximum radius
 let vRand;
@@ -22,7 +24,7 @@ let pressure = 1.0;  // target confining pressure
 // non-dimensional parameters
 let kappa = 10000
 let viscoRate = 0.2; // typical for granular materials (0.1-0.3)
-let InertialNumber = 1.0E-2;
+let InertialNumber = 1.0E-3;
 let damping = 0.01; // global damping coefficient
 
 // Grain parameters
@@ -174,7 +176,7 @@ function draw() {
     istep++;
 
     // DISPLAY STUFF
-    world.drawParticles(scale, 5 * vRand);
+    world.drawParticles(scale, colorBy, maxParam);
     world.drawWalls(scale);
     counts = world.drawContacts(scale, fnmax, rmin);
 

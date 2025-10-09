@@ -225,24 +225,12 @@ class World {
     // Draw functions for visualization
 
     drawContacts(scale, fnmax, rmin) {
-        // Draw contact forces between grains
-        stroke(255, 100, 0);  // Orange color for contacts
+        // Draw contact forces between grains using individual neighbor draw methods
         let contactCount = 0;
 
-        for (let k = 0; k < this.neighbors.length; k++) {
-            if (this.neighbors[k].touch) {
-                // Line thickness based on force magnitude
-                let w = map(this.neighbors[k].fn, 0, fnmax, 0, rmin * scale);
-                strokeWeight(w);
-
-                // Get positions of the two grains in contact
-                let xi = this.grains[this.neighbors[k].i].pos.x * scale;
-                let yi = height - (this.grains[this.neighbors[k].i].pos.y * scale);
-                let xj = this.grains[this.neighbors[k].j].pos.x * scale;
-                let yj = height - (this.grains[this.neighbors[k].j].pos.y * scale);
-
-                // Draw contact line
-                line(xi, yi, xj, yj);
+        for (let neighbor of this.neighbors) {
+            if (neighbor.touch) {
+                neighbor.draw(this.grains, scale, fnmax, rmin);
                 contactCount++;
             }
         }
@@ -250,10 +238,10 @@ class World {
         strokeWeight(1);  // Reset stroke weight
         return contactCount;  // Return number of contacts for coordination number
     }
-    drawParticles(scale, maxVelocity) {
+    drawParticles(scale, colorBy, maxParam) {
         // Draw all grains
         for (let grain of this.grains) {
-            grain.draw(scale, maxVelocity);
+            grain.draw(scale, colorBy, maxParam);
         }
     }
 
